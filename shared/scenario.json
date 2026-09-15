@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "stages": [
+    {
+      "name": "작은 틈, 큰 사고",
+      "label": "온프레미스",
+      "tag": "THE BREACH",
+      "description": "한밤중, 유출된 비밀번호 하나가 발견됐습니다. 별도의 인증 없이 관리자 접속을 허용하던 서버. 어디까지 접근할 수 있을까요?",
+      "note": "이 서버는 관리자 비밀번호만으로 접속하도록 잘못 설정되어 있습니다. 온프레미스에서도 다중 인증과 권한 분리로 같은 사고를 줄일 수 있습니다."
+    },
+    {
+      "name": "데이터의 새로운 경계",
+      "label": "클라우드 이전",
+      "tag": "THE TRANSITION",
+      "description": "이제 수습 담당자의 시점입니다. 가상의 업무 파일을 클라우드 창고로 옮기고, 누가 들어올 수 있는지 직접 정해 보세요.",
+      "note": "S3는 인터넷에 있는 파일 창고입니다. 버킷은 보관함, 객체는 그 안에 담긴 파일이라고 생각하면 됩니다. 이전만으로 보안이 완성되지는 않습니다."
+    },
+    {
+      "name": "같은 시도, 다른 결과",
+      "label": "접근 검증",
+      "tag": "THE BOUNDARY",
+      "description": "유출된 비밀번호로 다시 접근합니다. 이어서 권한이 부족한 클라우드 세션도 확인해 보세요. 우리가 설정한 경계가 실제로 작동할까요?",
+      "note": "서버 비밀번호는 클라우드 출입증이 아닙니다. 유효한 클라우드 세션이 있어도 권한과 추가 인증 조건을 통과해야 파일을 읽을 수 있습니다."
+    }
+  ],
+  "steps": [
+    {
+      "stage": 0,
+      "command": "ssh root@legacy.invalid",
+      "prompt": "analyst@boundary:~$",
+      "title": "유출된 계정으로 접속하기",
+      "explanation": "ssh는 다른 컴퓨터에 접속하는 명령입니다. root는 모든 작업을 할 수 있는 관리자 계정이에요.",
+      "output": [
+        "Connecting to legacy.invalid (isolated simulation)...",
+        "root@legacy.invalid's password:"
+      ],
+      "event": "관리자 접속 요청",
+      "tone": "neutral"
+    },
+    {
+      "stage": 0,
+      "command": "Admin123!",
+      "prompt": "password:",
+      "title": "가상의 유출 비밀번호 입력하기",
+      "explanation": "아래는 시나리오 전용 비밀번호입니다. 실제 비밀번호를 입력하지 마세요. 화면에는 입력 길이만 표시됩니다.",
+      "output": [
+        "Welcome to Ubuntu 24.04 LTS (simulated)",
+        "Last login: 02:14:08 from lab-console",
+        "Session opened. Additional authentication: none"
+      ],
+      "event": "추가 인증 없이 접속 허용",
+      "tone": "danger"
+    },
+    {
+      "stage": 0,
+      "command": "whoami",
+      "prompt": "root@legacy:~#",
+      "title": "현재 내 권한 확인하기",
+      "explanation": "whoami는 ‘나는 누구인가요?’라는 뜻입니다. 접속한 계정의 이름을 보여 줍니다.",
+      "output": ["root", "[lab] 관리자 권한 확인 · 계정별 권한 분리 없음"],
+      "event": "관리자 권한 노출 확인",
+      "tone": "danger"
+    },
+    {
+      "stage": 0,
+      "command": "ls /srv",
+      "prompt": "root@legacy:~#",
+      "title": "노출된 업무 파일 확인하기",
+      "explanation": "ls는 파일 목록을 보여 줍니다. /srv는 서비스 데이터를 보관하는 폴더예요. 여기서는 가상의 파일 이름만 확인합니다.",
+      "output": [
+        "backup.txt    customers.demo    finance.demo",
+        "[lab] 세 개의 업무 자산에 관리자 접근 가능",
+        "사고 원인: 비밀번호 단독 인증 + 과도한 권한"
+      ],
+      "event": "업무 자산 3개 노출",
+      "tone": "danger"
+    },
+    {
+      "stage": 1,
+      "command": "aws s3 mb s3://boundary-demo",
+      "prompt": "responder@cloud:~$",
+      "title": "S3에 새 보관함 만들기",
+      "explanation": "mb는 make bucket, 즉 보관함 만들기입니다. 이 터미널의 AWS 명령은 화면 안에서만 동작합니다.",
+      "output": [
+        "make_bucket: boundary-demo",
+        "[lab] 가상 S3 버킷 생성 · 공개 접근 차단"
+      ],
+      "event": "가상 S3 보관함 생성",
+      "tone": "neutral"
+    },
+    {
+      "stage": 1,
+      "command": "aws s3 cp backup.txt s3://boundary-demo/",
+      "prompt": "responder@cloud:~$",
+      "title": "가상의 백업 파일 옮기기",
+      "explanation": "cp는 copy, 복사입니다. 왼쪽의 파일을 오른쪽 보관함으로 옮겨 담는다고 읽으면 쉬워요.",
+      "output": [
+        "upload: ./backup.txt to s3://boundary-demo/backup.txt",
+        "[lab] 합성 데이터 1개 보관 완료 · 실제 파일 업로드 없음"
+      ],
+      "event": "백업 파일 이전 완료",
+      "tone": "neutral"
+    },
+    {
+      "stage": 1,
+      "command": "lab policy apply least-privilege",
+      "prompt": "responder@cloud:~$",
+      "title": "필요한 사람에게만 권한 주기",
+      "explanation": "IAM은 출입증 관리소입니다. 이 실습 전용 명령은 백업 담당 역할만 파일을 읽을 수 있도록 규칙을 설정합니다.",
+      "output": [
+        "[lab] Policy applied: BackupReader only",
+        "[lab] Other roles: GetObject explicitly denied",
+        "[lab] Public access: blocked"
+      ],
+      "event": "최소 권한 정책 적용",
+      "tone": "success"
+    },
+    {
+      "stage": 1,
+      "command": "lab mfa require",
+      "prompt": "responder@cloud:~$",
+      "title": "출입증에 한 번 더 확인 더하기",
+      "explanation": "MFA는 비밀번호 외에 한 번 더 본인 확인을 하는 장치입니다. 여기서는 MFA로 인증된 실습 세션만 허용하는 조건을 추가합니다.",
+      "output": [
+        "[lab] Require MFA-authenticated lab session: enabled",
+        "[lab] Protection ready: role restriction + MFA condition",
+        "주의: lab 명령은 AWS 명령이 아닌 실습 전용입니다."
+      ],
+      "event": "추가 인증 조건 적용",
+      "tone": "success"
+    },
+    {
+      "stage": 2,
+      "command": "lab identity leaked-password",
+      "prompt": "analyst@boundary:~$",
+      "title": "이전 비밀번호로 다시 접근해 보기",
+      "explanation": "이전 서버의 비밀번호가 S3에서도 통할까요? S3는 서버 로그인 비밀번호를 클라우드 인증 정보로 받지 않습니다.",
+      "output": [
+        "[lab] Legacy server password presented",
+        "Unable to locate cloud credentials.",
+        "[lab] 서버 비밀번호로는 AWS 세션을 만들 수 없습니다."
+      ],
+      "event": "서버 비밀번호로 클라우드 인증 불가",
+      "tone": "success"
+    },
+    {
+      "stage": 2,
+      "command": "lab identity limited-session",
+      "prompt": "analyst@boundary:~$",
+      "title": "권한이 부족한 세션으로 바꾸기",
+      "explanation": "이번에는 유효하지만 권한이 부족한 테스트 출입증을 준비합니다. 이 세션은 백업 담당 역할이 아니고 MFA 인증도 없습니다.",
+      "output": [
+        "[lab] Test identity: ExternalViewer",
+        "[lab] Cloud session: valid | MFA: absent",
+        "[lab] Requested role is not BackupReader"
+      ],
+      "event": "제한된 테스트 세션 준비",
+      "tone": "neutral"
+    },
+    {
+      "stage": 2,
+      "command": "aws s3 cp s3://boundary-demo/backup.txt .",
+      "prompt": "viewer@cloud:~$",
+      "title": "보관함의 접근 규칙 확인하기",
+      "explanation": "이 요청은 유효한 세션으로 보내지만, 허용된 역할과 추가 인증 조건을 갖추지 못했습니다. 결과를 확인하세요.",
+      "output": [
+        "fatal error: An error occurred (AccessDenied) when calling the GetObject operation: Access Denied",
+        "[lab] DENY: role mismatch; MFA condition not satisfied",
+        "[lab] 실제 데이터 전송: 0 bytes"
+      ],
+      "event": "권한 정책이 파일 접근 차단",
+      "tone": "success"
+    },
+    {
+      "stage": 2,
+      "command": "lab verify trusted-session",
+      "prompt": "responder@cloud:~$",
+      "title": "정상 사용자는 통과하는지 확인하기",
+      "explanation": "보안은 모두를 막는 것이 아닙니다. 허용된 역할과 추가 인증을 갖춘 백업 담당자는 필요한 파일을 읽을 수 있어야 합니다.",
+      "output": [
+        "[lab] Test identity: BackupReader | MFA: verified",
+        "[lab] GetObject: ALLOWED · synthetic backup readable",
+        "검증 완료. 필요한 접근은 허용하고, 나머지는 차단했습니다."
+      ],
+      "event": "정상 업무 접근 허용 확인",
+      "tone": "success"
+    }
+  ]
+}
